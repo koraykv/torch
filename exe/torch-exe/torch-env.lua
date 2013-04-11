@@ -285,14 +285,17 @@ end
 loaddefaultlibs(loadwithimport)
 
 -- setup local paths (for LuarRocks and Torch-pkg)
-local localinstalldir = paths.concat(os.getenv('HOME'),'.torch','usr')
+local home = os.getenv('HOME')
+if not home or not paths.dirp(home) then home = os.getenv('HOMEPATH') end
+if not home or not paths.dirp(home) then home = '.' end
+local localinstalldir = paths.concat(home,'.torch','usr')
 if paths.dirp(localinstalldir) then
    package.path = paths.concat(localinstalldir,'share','torch','lua','?','init.lua') .. ';' .. package.path
    package.path = paths.concat(localinstalldir,'share','torch','lua','?.lua') .. ';' ..  package.path
    package.cpath = paths.concat(localinstalldir,'lib','torch','?.so') .. ';' .. package.cpath
    package.cpath = paths.concat(localinstalldir,'lib','torch','?.dylib') .. ';' .. package.cpath
 end
-local localinstalldir = paths.concat(os.getenv('HOME'),'.luarocks')
+local localinstalldir = paths.concat(home,'.luarocks')
 if paths.dirp(localinstalldir) then
    package.path = paths.concat(localinstalldir,'share','lua','5.1','?','init.lua') .. ';' .. package.path
    package.path = paths.concat(localinstalldir,'share','lua','5.1','?.lua') .. ';' ..  package.path

@@ -66,8 +66,8 @@ local function gnuplothasterm(term)
    local s = tf:read('*l')
    while s do
       if s:match('^.*%s+  '.. term .. ' ') then
-	 tf:close()
-	 os.remove(tfno)
+         tf:close()
+         os.remove(tfno)
          return true
       end
       s = tf:read('*l')
@@ -81,44 +81,49 @@ local function findgnuplotversion(exe)
    local ff = io.popen(exe .. '  --version','r')
    local ss = ff:read('*l')
    ff:close()
-   local v,vv = ss:match('(%d).(%d)')
-   v=tonumber(v)
-   vv=tonumber(vv)
-   return v,vv
+   if ss == nil then
+      return 0
+   else
+      local v, vv = ss:match('(%d).(%d)')
+      v = tonumber(v or '0')
+      vv = tonumber(vv or '0')
+      return v * 100 + vv
+   end
 end
 
 local function findgnuplotexe()
-   local os = findos()
-   if os == 'windows' then
-      return 'gnuplot.exe' -- I don't know how to find executables in Windows
-   else
-      _gptable.hasrefresh = true
-      local ff = io.popen('which gnuplot','r')
-      local s=ff:read('*l')
-      ff:close()
-      if s and s:len() > 0 and s:match('gnuplot') then
-         local v,vv = findgnuplotversion(s)
-         if  v < 4 then
-            error('gnuplot version 4 is required')
-         end
-         if vv < 4 then
-            -- try to find gnuplot44
-            if os == 'linux' and paths.filep('/usr/bin/gnuplot44') then
-               local ss = '/usr/bin/gnuplot44'
-               v,vv = findgnuplotversion(ss)
-               if v == 4 and vv == 4 then
-                  return ss
-               end
-            end
-            _gptable.hasrefresh = false
-            print('Gnuplot package working with reduced functionality.')
-            print('Please install gnuplot version >= 4.4.')
-         end
-         return s
-      else
-         return nil
+   local o = findos()
+   local s = nil
+   if o == 'windows' then
+      if os.execute('where /q gnuplot') == 0 then
+         local ff = io.popen('where gnuplot','r')
+         s = ff:read('*l')
+         ff:close()
       end
+   else
+      local ff = io.popen('which gnuplot','r')
+      s = ff:read('*l')
+      if s == nil or not s:match('gnuplot') then s = nil end
+      ff:close()
+   end   
+   local v = 0
+   if s then
+      v = findgnuplotversion(s)
    end
+   if o == 'linux' and v < 404 and paths.filep('/usr/bin/gnuplot44') then
+      s = '/usr/bin/gnuplot44'
+      v = findgnuplotversion(s)
+   end
+   if v < 400 then
+      print('Gnuplot package disabled (please install gnuplot >= 4.4)')
+      return nil;
+   end
+   _gptable.hasrefresh = true
+   if v < 404 then
+      _gptable.hasrefresh = false
+      print('Gnuplot package working with reduced functionality (need gnuplot >= 4.4).')
+   end
+   return s
 end
 
 local function getgnuplotdefaultterm(os)
