@@ -4,8 +4,6 @@
 #include "paths.h"
 
 
-
-
 /* ------------------------------------------------------ */
 /* Utils to manipulate strings */
 
@@ -654,6 +652,99 @@ lua_dir(lua_State *L)
 }
 
 
+/* ------------------------------------------------------ */
+/* tmpname */
+
+
+static const char *tmpnames_key = "tmpname_sentinel";
+
+struct tmpname_s {
+    struct tmpname_s *next;
+    char tmp[1];
+};
+
+static int gc_tmpname(lua_State *L)
+{
+  if (lua_isuserdata(L, -1))
+  {
+    struct tmpname_s **pp = (struct tmpname_s **)lua_touserdata(L, -1);
+    while (pp && *pp)
+    {
+      struct tmpname_s *p = *pp;
+      *pp = p->next;
+      remove(p->tmp);
+      free(p);
+    }
+  }
+  return 0;
+
+}
+
+static void add_tmpname(lua_State *L, const char *tmp)
+{
+  struct tmpname_s **pp = 0;
+  lua_pushlightuserdata(L, (void*)tmpnames_key);
+  lua_rawget(L, LUA_REGISTRYINDEX);
+  if (lua_isuserdata(L, -1))
+  {
+    pp = (struct tmpname_s **)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+  }
+  else
+  {
+    lua_pop(L, 1);
+    // create sentinel
+    lua_pushlightuserdata(L, (void*)tmpnames_key);
+    pp = (struct tmpname_s **)lua_newuserdata(L, sizeof(void*));
+    pp[0] = 0;
+    lua_createtable(L, 0, 1);
+    lua_pushcfunction(L, gc_tmpname);
+    lua_setfield(L,-2,"__gc");
+    lua_setmetatable(L, -2);
+    lua_rawset(L, LUA_REGISTRYINDEX);
+  }
+  while (pp && *pp)
+  {
+      struct tmpname_s *p = *pp;
+      if (!strcmp(p->tmp, tmp)) return;
+      pp = &(p->next);
+  }
+  if (pp)
+  {
+        int len = strlen(tmp)+ sizeof(struct tmpname_s);
+        struct tmpname_s *t = (struct tmpname_s*)malloc(len);
+        if (t)
+        {
+            t->next = 0;
+            memcpy(t->tmp, tmp, len);
+            t->tmp[len] = 0;
+            *pp = t;
+        }
+    }
+}
+
+
+static int path_tmpname(lua_State *L)
+{
+#ifdef LUA_WIN
+  char *tmp = _tempnam("c:/temp", "luatmp");
+#else
+  char *tmp = tempnam(NULL, "luatmp");
+#endif
+  if (tmp)
+  {
+    lua_pushstring(L, tmp);
+    add_tmpname(L, tmp);
+    free(tmp);
+    return 1;
+  }
+  else
+  {
+    lua_pushnil(L);
+    return 1;
+  }
+}
+
 
 /* ------------------------------------------------------ */
 /* require (with global flag) */
@@ -795,6 +886,7 @@ static const struct luaL_Reg paths__ [] = {
   {"concat", lua_concatfname},
   {"execdir", lua_execdir},
   {"dir", lua_dir},
+  {"tmpname", path_tmpname},
   {"require", path_require},
   {NULL, NULL}
 };
