@@ -1,6 +1,7 @@
 
 require 'paths'
 
+
 local _gptable = {}
 _gptable.current = nil
 _gptable.defaultterm = nil
@@ -14,26 +15,6 @@ local function getexec()
    return _gptable.exe
 end
 
-local function findos()
-   if paths.dirp('C:\\') then
-      return 'windows'
-   else
-      local ff = io.popen('uname -a','r')
-      local s = ff:read('*all')
-      ff:close()
-      if s and s:match('Darwin') then
-         return 'mac'
-      elseif s and s:match('Linux') then
-         return 'linux'
-      elseif s and s:match('FreeBSD') then
-         return 'freebsd'
-      else
-         --error('I don\'t know your operating system')
-         return '?'
-      end
-   end
-end
-
 local function getfigure(n)
    local n = n
    if not n or n == nil then
@@ -44,8 +25,14 @@ local function getfigure(n)
       if _gptable.defaultterm == nil then
          error('Gnuplot terminal is not set')
       end
+      local cmd = getexec() .. ' -persist'
+      if _gptable.windows then 
+         cmd = cmd .. ' > nul 2>&1'
+      else 
+         cmd = cmd .. ' > /dev/null 2>&1' 
+      end
       _gptable[n].term = _gptable.defaultterm
-      _gptable[n].pipe = torch.PipeFile(getexec() .. ' -persist > /dev/null 2>&1 ','w')
+      _gptable[n].pipe = torch.PipeFile(cmd,'w')
    end
    _gptable.current = n
    return _gptable[n]
@@ -53,7 +40,10 @@ end
 
 local function gnuplothasterm(term)
    if not _gptable.exe then
-      return false--error('gnuplot exe is not found, can not chcek terminal')
+      return false -- error('gnuplot exe is not found, can not chcek terminal')
+   end
+   if _gptable.windows then
+      return true -- redirections work so mysteriously under windows
    end
    local tfni = os.tmpname()
    local tfno = os.tmpname()
@@ -92,13 +82,11 @@ local function findgnuplotversion(exe)
 end
 
 local function findgnuplotexe()
-   local o = findos()
+   _gptable.windows = paths.dirname('c:\\') == 'c:/'
    local s = nil
-   if o == 'windows' then
+   if _gptable.windows then
       if os.execute('where /q gnuplot') == 0 then
-         local ff = io.popen('where gnuplot','r')
-         s = ff:read('*l')
-         ff:close()
+         s = 'gnuplot' -- full path may contain spaces
       end
    else
       local ff = io.popen('which gnuplot','r')
@@ -126,60 +114,50 @@ local function findgnuplotexe()
    return s
 end
 
-local function getgnuplotdefaultterm(os)
-   if os == 'windows' and gnuplothasterm('windows') then
+local function getgnuplotdefaultterm()
+   if _gptable.windows then
       return  'windows'
-   elseif os == 'linux' and gnuplothasterm('wxt') then
-      return  'wxt'
-   elseif os == 'linux' and gnuplothasterm('x11') then
-      return  'x11'
-   elseif os == 'freebsd' and gnuplothasterm('wxt') then
-      return  'wxt'
-   elseif os == 'freebsd' and gnuplothasterm('x11') then
-      return  'x11'
-   elseif os == 'mac' and gnuplothasterm('aqua') then
+   elseif gnuplothasterm('aqua') then
       return  'aqua'
-   elseif os == 'mac' and gnuplothasterm('x11') then
+   elseif gnuplothasterm('wxt') then
+      return  'wxt'
+   elseif gnuplothasterm('x11') then
       return  'x11'
    else
-      print('Can not find any of the default terminals for ' .. os .. ' you can manually set terminal by gnuplot.setterm("terminal-name")')
+      print('Can not find default gnuplot terminal. '
+            .. 'Please set it manually using gnuplot.setterm("terminal-name").')
       return nil
    end
 end
 
 local function findgnuplot()
    local exe = findgnuplotexe()
-   local os = findos()
    if not exe then
-      return nil--error('I could not find gnuplot exe')
+      return nil -- error('I could not find gnuplot exe')
    end
    _gptable.exe = exe
-   _gptable.defaultterm = getgnuplotdefaultterm(os)
+   _gptable.defaultterm = getgnuplotdefaultterm()
 end
 
 
 function gnuplot.setgnuplotexe(exe)
    local oldexe = _gptable.exe
-
    if not paths.filep(exe) then
       error(exe .. ' does not exist')
    end
-
+   _gptable.windows = paths.dirname('c:\\') == 'c:/'
    _gptable.exe = exe
-   local v,vv = findgnuplotversion(exe)
-   if v < 4 then error('gnuplot version 4 is required') end
-   if vv < 4 then 
+   local v = findgnuplotversion(exe)
+   if v < 400 then 
+      error('gnuplot version 4 is required') 
+   end
+   _gptable.hasrefresh = true
+   if vv < 404 then 
       _gptable.hasrefresh = false
-      print('Some functionality like adding title, labels, ... will be disabled, it is better to install gnuplot version 4.4')
-   else
-      _gptable.hasrefresh = true
+      print('Some functionality like adding title, labels, etc. will be disabled. '
+            .. 'Please install gnuplot version >= 4.4.')
    end
-   
-   local os = findos()
-   local term = getgnuplotdefaultterm(os)
-   if term == nil then
-      print('You have manually set the gnuplot exe and I can not find default terminals, run gnuplot.setterm("terminal-name") to set term type')
-   end
+   _gptable.defaultterm = getgnuplotdefaultterm()
 end
 
 function gnuplot.setterm(term)
@@ -202,6 +180,7 @@ local function writeToPlot(gp,str)
    pipe:writeString(str .. '\n\n\n')
    pipe:synchronize()
 end
+
 local function refreshPlot(gp)
    if gp.fname then
       writeToPlot(gp,'set output "' .. gp.fname .. '"')
@@ -211,9 +190,11 @@ local function refreshPlot(gp)
       writeToPlot(gp,'unset output')
    end
 end
+
 local function writeToCurrent(str)
    writeToPlot(getCurrentPlot(),str)
 end
+
 local function refreshCurrent()
    refreshPlot(getCurrentPlot())
 end
@@ -360,7 +341,8 @@ local function getsplotvars(t)
       for i=1,y:size(2) do y:select(2,i):fill(i) end
    end
    if x:nDimension() ~= 2 or y:nDimension() ~= 2 or z:nDimension() ~= 2 then
-      error('x and y and z are expected to be matrices x = ' .. x:nDimension() .. 'D y = ' .. y:nDimension() .. 'D z = '.. z:nDimension() .. 'D' )
+      error('x and y and z are expected to be matrices x = ' .. x:nDimension() 
+            .. 'D y = ' .. y:nDimension() .. 'D z = '.. z:nDimension() .. 'D' )
    end
    return legend,x,y,z
 end
@@ -456,6 +438,7 @@ local function gnuplot_string(legend,x,y,format)
    end
    return hstr,table.concat(dstr)
 end
+
 local function gnu_splot_string(legend,x,y,z)
    local hstr = string.format('%s\n','set contour base')
    hstr = string.format('%s%s\n',hstr,'set cntrparam bspline\n')
