@@ -660,7 +660,7 @@ static const char *tmpnames_key = "tmpname_sentinel";
 
 struct tmpname_s {
     struct tmpname_s *next;
-    char tmp[1];
+    char tmp[4];
 };
 
 static int gc_tmpname(lua_State *L)
@@ -711,8 +711,8 @@ static void add_tmpname(lua_State *L, const char *tmp)
   }
   if (pp)
   {
-        int len = strlen(tmp)+ sizeof(struct tmpname_s);
-        struct tmpname_s *t = (struct tmpname_s*)malloc(len);
+        int len = strlen(tmp);
+        struct tmpname_s *t = (struct tmpname_s*)malloc(len + sizeof(struct tmpname_s));
         if (t)
         {
             t->next = 0;
