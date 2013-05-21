@@ -185,19 +185,19 @@ function print(...)
          print_old(tostring(obj))
       else
          if torch.typename(obj) then
-            print_old(obj)
+            line(tostring(obj):gsub('\n','\n' .. string.rep(' ',tab)))
          end
          line('{')
          tab = tab+2
          for k,v in pairs(obj) do
             if type(v) == 'table' then
                if tab > 16 or next(v) == nil then
-                  line(k .. ' : ' .. colorize(v))
+                  line(tostring(k) .. ' : ' .. colorize(v))
                else
-                  line(k .. ' : ') printrecursive(v,tab+4)
+                  line(tostring(k) .. ' : ') printrecursive(v,tab+4)
                end
             else
-               line(k .. ' : ' .. colorize(v))
+               line(tostring(k) .. ' : ' .. colorize(v))
             end
          end
          tab = tab-2
@@ -289,6 +289,8 @@ local localinstalldir = paths.concat(os.getenv('HOME'),'.torch','usr')
 if paths.dirp(localinstalldir) then
    package.path = paths.concat(localinstalldir,'share','torch','lua','?','init.lua') .. ';' .. package.path
    package.path = paths.concat(localinstalldir,'share','torch','lua','?.lua') .. ';' ..  package.path
+   package.cpath = paths.concat(localinstalldir,'lib','torch','lua','?.so') .. ';' .. package.cpath
+   package.cpath = paths.concat(localinstalldir,'lib','torch','lua','?.dylib') .. ';' .. package.cpath
    package.cpath = paths.concat(localinstalldir,'lib','torch','?.so') .. ';' .. package.cpath
    package.cpath = paths.concat(localinstalldir,'lib','torch','?.dylib') .. ';' .. package.cpath
 end
