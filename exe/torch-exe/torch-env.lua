@@ -95,7 +95,6 @@ function exit()
    os.exit()
 end
 
-print_old=print
 _G._preloaded_ = {}
 for k,v in pairs(_G) do
    _G._preloaded_[k] = true
@@ -175,10 +174,13 @@ local function colorize(object)
 end
 
 -- This is a new recursive, colored print.
-function print(...)
+local ndepth = 4
+local print_old=print
+local function print_new(...)
    local objs = {...}
-   local function printrecursive(obj,tab)
-      local tab = tab or 0
+   local function printrecursive(obj,depth)
+      local depth = depth or 0
+      local tab = depth*4
       local line = function(s) for i=1,tab do io.write(' ') end print_old(s) end
       local mt = getmetatable(obj)
       if mt and mt.__tostring and torch.typename(obj) == nil then
@@ -191,10 +193,10 @@ function print(...)
          tab = tab+2
          for k,v in pairs(obj) do
             if type(v) == 'table' then
-               if tab > 16 or next(v) == nil then
+               if depth >= (ndepth-1) or next(v) == nil then
                   line(tostring(k) .. ' : ' .. colorize(v))
                else
-                  line(tostring(k) .. ' : ') printrecursive(v,tab+4)
+                  line(tostring(k) .. ' : ') printrecursive(v,depth+1)
                end
             else
                line(tostring(k) .. ' : ' .. colorize(v))
@@ -220,6 +222,20 @@ function print(...)
       end
    end
 end
+
+function setprintlevel(n)
+  if n == nil or n < 0 then
+    error('expected number [0,+)')
+  end
+  n = math.floor(n)
+  ndepth = n
+  if ndepth == 0 then
+    print = print_old
+  else
+    print = print_new
+  end
+end
+setprintlevel(5)
 
 -- table():
 -- ok, this is slightly out of context, but that function
@@ -255,6 +271,7 @@ function import(package, forced)
       end
    end
 end
+
 
 -- install module:
 -- this function builds and install a specified module
@@ -292,6 +309,8 @@ local localinstalldir = paths.concat(home,'.torch','usr')
 if paths.dirp(localinstalldir) then
    package.path = paths.concat(localinstalldir,'share','torch','lua','?','init.lua') .. ';' .. package.path
    package.path = paths.concat(localinstalldir,'share','torch','lua','?.lua') .. ';' ..  package.path
+   package.cpath = paths.concat(localinstalldir,'lib','torch','lua','?.so') .. ';' .. package.cpath
+   package.cpath = paths.concat(localinstalldir,'lib','torch','lua','?.dylib') .. ';' .. package.cpath
    package.cpath = paths.concat(localinstalldir,'lib','torch','?.so') .. ';' .. package.cpath
    package.cpath = paths.concat(localinstalldir,'lib','torch','?.dylib') .. ';' .. package.cpath
 end
