@@ -27,10 +27,22 @@ static __thread THRandomState default_state = {
   .normal_is_valid = 0
 };
 
-unsigned long THRandom_seed()
+void THRandom_init(THRandomState *state)
+{
+  memset(state, sizeof(*state), 0);
+  state->left = 1;
+}
+
+void THRandom_done(THRandomState *state)
+{
+  /* nop, for future extendability */
+}
+
+
+unsigned long THRandom_seed(THRandomState *state)
 {
   unsigned long s = (unsigned long)time(0);
-  THRandom_manualSeed(s);
+  THRandom_manualSeed(state, s);
   return s;
 }
 
@@ -94,46 +106,51 @@ unsigned long THRandom_seed()
 #define TWIST(u,v) ((MIXBITS(u,v) >> 1) ^ ((v)&1UL ? MATRIX_A : 0UL))
 /*********************************************************** That's it. */
 
-void THRandom_manualSeed(unsigned long the_seed_)
+void THRandom_manualSeed(THRandomState *state, unsigned long the_seed_)
 {
   int j;
-  state.the_initial_seed = the_seed_;
-  state.state[0]= state.the_initial_seed & 0xffffffffUL;
+  if (!state) state = &default_state;
+  state->the_initial_seed = the_seed_;
+  state->state[0]= state->the_initial_seed & 0xffffffffUL;
   for(j = 1; j < n; j++)
   {
-    state.state[j] = (1812433253UL * (state.state[j-1] ^ (state.state[j-1] >> 30)) + j); 
+    state->state[j] = (1812433253UL * (state->state[j-1] ^ (state->state[j-1] >> 30)) + j); 
     /* See Knuth TAOCP Vol2. 3rd Ed. P.106 for multiplier. */
     /* In the previous versions, mSBs of the seed affect   */
     /* only mSBs of the array state[].                        */
     /* 2002/01/09 modified by makoto matsumoto             */
-    state.state[j] &= 0xffffffffUL;  /* for >32 bit machines */
+    state->state[j] &= 0xffffffffUL;  /* for >32 bit machines */
   }
-  state.left = 1;
-  state.initf = 1;
+  state->left = 1;
+  state->initf = 1;
 }
 
-unsigned long THRandom_initialSeed()
+unsigned long THRandom_initialSeed(THRandomState *state)
 {
-  if(state.initf == 0)
+  if (!state) state = &default_state;
+
+  if(state->initf == 0)
   {
-    THRandom_seed();
+    THRandom_seed(state);
   }
 
-  return state.the_initial_seed;
+  return state->the_initial_seed;
 }
 
-void THRandom_nextState()
+void THRandom_nextState(THRandomState *state)
 {
-  unsigned long *p=state.state;
+  if (!state) state = &default_state;
+
+  unsigned long *p=state->state;
   int j;
 
   /* if init_genrand() has not been called, */
   /* a default initial seed is used         */
-  if(state.initf == 0)
-    THRandom_seed();
+  if(state->initf == 0)
+    THRandom_seed(state);
 
-  state.left = n;
-  state.next = state.state;
+  state->left = n;
+  state->next = state->state;
     
   for(j = n-m+1; --j; p++) 
     *p = p[m] ^ TWIST(p[0], p[1]);
@@ -141,16 +158,18 @@ void THRandom_nextState()
   for(j = m; --j; p++) 
     *p = p[m-n] ^ TWIST(p[0], p[1]);
 
-  *p = p[m-n] ^ TWIST(p[0], state.state[0]);
+  *p = p[m-n] ^ TWIST(p[0], state->state[0]);
 }
 
-unsigned long THRandom_random()
+unsigned long THRandom_random(THRandomState *state)
 {
   unsigned long y;
 
-  if (--state.left == 0)
-    THRandom_nextState();
-  y = *state.next++;
+  if (!state) state = &default_state;
+
+  if (--state->left == 0)
+    THRandom_nextState(state);
+  y = *state->next++;
   
   /* Tempering */
   y ^= (y >> 11);
@@ -162,13 +181,15 @@ unsigned long THRandom_random()
 }
 
 /* generates a random number on [0,1)-double-interval */
-static double __uniform__()
+static double __uniform__(THRandomState *state)
 {
   unsigned long y;
 
-  if(--state.left == 0)
-    THRandom_nextState();
-  y = *state.next++;
+  if (!state) state = &default_state;
+
+  if(--state->left == 0)
+    THRandom_nextState(state);
+  y = *state->next++;
 
   /* Tempering */
   y ^= (y >> 11);
@@ -188,59 +209,61 @@ static double __uniform__()
 
 *********************************************************/
 
-double THRandom_uniform(double a, double b)
+double THRandom_uniform(THRandomState *state, double a, double b)
 {
-  return(__uniform__() * (b - a) + a);
+  return(__uniform__(state) * (b - a) + a);
 }
 
-double THRandom_normal(double mean, double stdv)
+double THRandom_normal(THRandomState *state, double mean, double stdv)
 {
   THArgCheck(stdv > 0, 2, "standard deviation must be strictly positive");
 
-  if(!state.normal_is_valid)
+  if (!state) state = &default_state;
+
+  if(!state->normal_is_valid)
   {
-    state.normal_x = __uniform__();
-    state.normal_y = __uniform__();
-    state.normal_rho = sqrt(-2. * log(1.0-state.normal_y));
-    state.normal_is_valid = 1;
+    state->normal_x = __uniform__(state);
+    state->normal_y = __uniform__(state);
+    state->normal_rho = sqrt(-2. * log(1.0-state->normal_y));
+    state->normal_is_valid = 1;
   }
   else
-    state.normal_is_valid = 0;
+    state->normal_is_valid = 0;
   
-  if(state.normal_is_valid)
-    return state.normal_rho*cos(2.*M_PI*state.normal_x)*stdv+mean;
+  if(state->normal_is_valid)
+    return state->normal_rho*cos(2.*M_PI*state->normal_x)*stdv+mean;
   else
-    return state.normal_rho*sin(2.*M_PI*state.normal_x)*stdv+mean;
+    return state->normal_rho*sin(2.*M_PI*state->normal_x)*stdv+mean;
 }
 
-double THRandom_exponential(double lambda)
+double THRandom_exponential(THRandomState *state, double lambda)
 {
-  return(-1. / lambda * log(1-__uniform__()));
+  return(-1. / lambda * log(1-__uniform__(state)));
 }
 
-double THRandom_cauchy(double median, double sigma)
+double THRandom_cauchy(THRandomState *state, double median, double sigma)
 {
-  return(median + sigma * tan(M_PI*(__uniform__()-0.5)));
+  return(median + sigma * tan(M_PI*(__uniform__(state)-0.5)));
 }
 
 /* Faut etre malade pour utiliser ca.
    M'enfin. */
-double THRandom_logNormal(double mean, double stdv)
+double THRandom_logNormal(THRandomState *state, double mean, double stdv)
 {
   double zm = mean*mean;
   double zs = stdv*stdv;
   THArgCheck(stdv > 0, 2, "standard deviation must be strictly positive");
-  return(exp(THRandom_normal(log(zm/sqrt(zs + zm)), sqrt(log(zs/zm+1)) )));
+  return(exp(THRandom_normal(state, log(zm/sqrt(zs + zm)), sqrt(log(zs/zm+1)) )));
 }
 
-int THRandom_geometric(double p)
+int THRandom_geometric(THRandomState *state, double p)
 {
   THArgCheck(p > 0 && p < 1, 1, "must be > 0 and < 1");
-  return((int)(log(1-__uniform__()) / log(p)) + 1);
+  return((int)(log(1-__uniform__(state)) / log(p)) + 1);
 }
 
-int THRandom_bernoulli(double p)
+int THRandom_bernoulli(THRandomState *state, double p)
 {
   THArgCheck(p >= 0 && p <= 1, 1, "must be >= 0 and <= 1");
-  return(__uniform__() <= p);
+  return(__uniform__(state) <= p);
 }

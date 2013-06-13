@@ -772,7 +772,7 @@ void THTensor_(range)(THTensor *r_, real xmin, real xmax, real step)
   TH_TENSOR_APPLY(real, r_, *r__data = xmin + (i++)*step;);
 }
 
-void THTensor_(randperm)(THTensor *r_, long n)
+void THTensor_(randperm)(THTensor *r_, THRandomState *state, long n)
 {
   real *r__data;
   long r__stride_0;
@@ -789,7 +789,7 @@ void THTensor_(randperm)(THTensor *r_, long n)
 
   for(i = 0; i < n-1; i++)
   {    
-    long z = THRandom_random() % (n-i);
+    long z = THRandom_random(state) % (n-i);
     real sav = r__data[i*r__stride_0];
     r__data[i*r__stride_0] = r__data[(z+i)*r__stride_0];
     r__data[(z+i)*r__stride_0] = sav;
@@ -1265,16 +1265,16 @@ void THTensor_(logspace)(THTensor *r_, real a, real b, long n)
   }
 }
 
-void THTensor_(rand)(THTensor *r_, THLongStorage *size)
+void THTensor_(rand)(THTensor *r_, THRandomState *state, THLongStorage *size)
 {
   THTensor_(resize)(r_, size, NULL);
-  THTensor_(uniform)(r_, 0, 1);
+  THTensor_(uniform)(r_, state, 0, 1);
 }
 
-void THTensor_(randn)(THTensor *r_, THLongStorage *size)
+void THTensor_(randn)(THTensor *r_, THRandomState *state, THLongStorage *size)
 {
   THTensor_(resize)(r_, size, NULL);
-  THTensor_(normal)(r_, 0, 1);
+  THTensor_(normal)(r_, state, 0, 1);
 }
 
 void THTensor_(histc)(THTensor *hist, THTensor *tensor, long nbins, real minvalue, real maxvalue)

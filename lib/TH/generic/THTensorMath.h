@@ -50,7 +50,7 @@ TH_API void THTensor_(ones)(THTensor *r_, THLongStorage *size);
 TH_API void THTensor_(diag)(THTensor *r_, THTensor *t, int k);
 TH_API void THTensor_(eye)(THTensor *r_, long n, long m);
 TH_API void THTensor_(range)(THTensor *r_, real xmin, real xmax, real step);
-TH_API void THTensor_(randperm)(THTensor *r_, long n);
+TH_API void THTensor_(randperm)(THTensor *r_, THRandomState *state, long n);
 
 TH_API void THTensor_(reshape)(THTensor *r_, THTensor *t, THLongStorage *size);
 TH_API void THTensor_(sort)(THTensor *rt_, THLongTensor *ri_, THTensor *t, int dimension, int descendingOrder);
@@ -107,8 +107,8 @@ TH_API accreal THTensor_(normall)(THTensor *t, real value);
 
 TH_API void THTensor_(linspace)(THTensor *r_, real a, real b, long n);
 TH_API void THTensor_(logspace)(THTensor *r_, real a, real b, long n);
-TH_API void THTensor_(rand)(THTensor *r_, THLongStorage *size);
-TH_API void THTensor_(randn)(THTensor *r_, THLongStorage *size);
+TH_API void THTensor_(rand)(THTensor *r_, THRandomState *state, THLongStorage *size);
+TH_API void THTensor_(randn)(THTensor *r_, THRandomState *state, THLongStorage *size);
 
 #endif
 
