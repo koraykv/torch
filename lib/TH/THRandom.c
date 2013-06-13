@@ -1,7 +1,7 @@
 #include "THGeneral.h"
 #include "THRandom.h"
 
-struct THRandomState {
+typedef struct THRandomState {
   /* The initial seed. */
   unsigned long the_initial_seed;
 
@@ -19,10 +19,9 @@ struct THRandomState {
   double normal_y;
   double normal_rho;
   int normal_is_valid;
-};
+} THRandomState;
 
-/* The default state. */
-static __thread struct THRandomState state = {
+static __thread THRandomState default_state = {
   .left = 1,
   .initf = 0,
   .normal_is_valid = 0
